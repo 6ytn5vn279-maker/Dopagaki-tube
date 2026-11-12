@@ -1,0 +1,12 @@
+   {
+     "name": "dopagaki-tube",
+     "version": "1.0.0",
+     "description": "Dopagaki tube YouTube Player",
+     "scripts": {
+       "start": "npx serve -s . -l $PORT"
+     },
+     "dependencies": {
+       "serve": "^14.2.1"
+     }
+   }
+   
