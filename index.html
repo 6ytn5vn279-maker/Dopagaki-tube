@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASAtube - YouTube & Direct Video Player</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: '#FF0000',
+                        brandHover: '#CC0000',
+                        darkBg: '#0f0f0f',
+                        cardBg: '#1f1f1f',
+                        cardHover: '#2d2d2d'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-darkBg text-gray-100 min-h-screen flex flex-col font-sans antialiased">
+
+    <!-- Header -->
+    <header class="border-b border-gray-800 bg-black/50 backdrop-blur sticky top-0 z-50 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <!-- Logo -->
+            <div class="flex items-center space-x-2 shrink-0">
+                <div class="bg-brand text-white p-2 rounded-xl flex items-center justify-center">
+                    <i data-lucide="play" class="w-6 h-6 fill-current"></i>
+                </div>
+                <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-red-100 to-gray-400 bg-clip-text text-transparent">
+                    ASAtube
+                </span>
+            </div>
+
+            <!-- URL / Video ID Input Form -->
+            <form id="url-form" class="flex w-full sm:w-auto flex-1 max-w-xl gap-2">
+                <div class="relative flex-1 flex items-center">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <i data-lucide="link" class="w-4 h-4"></i>
+                    </div>
+                    <input 
+                        type="text" 
+                        id="video-input" 
+                        placeholder="YouTubeのURL、動画ID、Googleリンク等を貼り付け" 
+                        class="w-full pl-10 pr-16 py-2 bg-gray-900 border border-gray-700 rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand text-sm transition text-gray-200 placeholder-gray-500"
+                        required
+                    />
+                    <!-- Input Utility Action Buttons (Clear & Paste) -->
+                    <div class="absolute right-2 flex items-center gap-1">
+                        <!-- Clear Button -->
+                        <button 
+                            type="button" 
+                            id="btn-clear-input" 
+                            class="p-1 text-gray-400 hover:text-white rounded-md transition hidden" 
+                            title="入力内容を消去"
+                        >
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                        <!-- Clipboard Paste Button -->
+                        <button 
+                            type="button" 
+                            id="btn-paste-input" 
+                            class="p-1 text-gray-400 hover:text-brand rounded-md transition" 
+                            title="クリップボードから貼り付け"
+                        >
+                            <i data-lucide="clipboard" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                <button 
+                    type="submit" 
+                    class="bg-brand hover:bg-brandHover text-white px-5 py-2 rounded-xl font-medium text-sm flex items-center justify-center space-x-2 transition shrink-0 shadow-lg shadow-brand/20 active:scale-95"
+                >
+                    <i data-lucide="play-circle" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">再生</span>
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left Section: Video Player -->
+        <section class="lg:col-span-2 flex flex-col gap-4">
+            <!-- Player Wrapper -->
+            <div class="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-gray-800" id="player-container">
+                <!-- YouTube IFrame Container -->
+                <div id="youtube-player" class="w-full h-full"></div>
+                <!-- Native Video Tag for Direct Video Streams -->
+                <video id="native-player" class="w-full h-full hidden" controls></video>
+            </div>
+
+            <!-- Video Info Section -->
+            <div class="bg-cardBg p-5 rounded-2xl border border-gray-800 flex items-start justify-between gap-4">
+                <div class="min-w-0 flex-1">
+                    <h1 id="video-title" class="text-xl font-bold text-white mb-2 leading-tight truncate">URLを入力して動画を再生してください</h1>
+                    <p id="video-id-display" class="text-xs text-gray-400 font-mono flex items-center gap-3">
+                        <span id="display-id" class="flex items-center gap-1 truncate">
+                            <i data-lucide="video" class="w-3.5 h-3.5 shrink-0"></i>
+                            <span class="truncate">ID / URL: -</span>
+                        </span>
+                        <span id="display-author" class="text-gray-400 font-sans hidden">
+                            <i data-lucide="user" class="w-3.5 h-3.5 inline mr-0.5"></i>
+                            <span></span>
+                        </span>
+                    </p>
+                </div>
+                <!-- Favorite Toggle Button for Playing Video -->
+                <button id="btn-toggle-favorite" class="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-amber-400 p-2.5 rounded-xl transition border border-gray-700 flex items-center gap-2 text-xs shrink-0 disabled:opacity-50" disabled>
+                    <i data-lucide="star" id="fav-icon" class="w-4 h-4"></i>
+                    <span id="fav-text">お気に入り追加</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Section: History & Favorites Tabs -->
+        <section class="flex flex-col gap-4 bg-cardBg p-4 md:p-5 rounded-2xl border border-gray-800 h-fit">
+            <!-- Tabs & Actions Header -->
+            <div class="flex flex-col gap-3">
+                <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+                    <div class="flex gap-2">
+                        <button id="tab-history-btn" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand text-white transition">
+                            <i data-lucide="history" class="w-4 h-4"></i>
+                            再生履歴
+                        </button>
+                        <button id="tab-favorites-btn" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-800 text-gray-400 hover:text-white transition">
+                            <i data-lucide="star" class="w-4 h-4"></i>
+                            お気に入り
+                        </button>
+                    </div>
+                    <button id="btn-clear-history" class="text-xs text-gray-500 hover:text-red-400 flex items-center gap-1 transition" title="履歴をすべて削除">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">履歴クリア</span>
+                    </button>
+                </div>
+
+                <!-- Search Input in Tab List -->
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input 
+                        type="text" 
+                        id="list-search" 
+                        placeholder="リスト内を検索..." 
+                        class="w-full pl-9 pr-3 py-1.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-gray-200 focus:outline-none focus:border-brand"
+                    />
+                </div>
+            </div>
+
+            <!-- Item List Container -->
+            <div id="item-list" class="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+                <!-- Dynamically rendered items -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-gray-900 border border-gray-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 translate-y-20 opacity-0 z-50">
+        <i data-lucide="info" class="w-5 h-5 text-brand"></i>
+        <span id="toast-message" class="text-sm">メッセージ</span>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // State Management
+        let player = null;
+        let isNative = false;
+        let currentVideoId = null;
+        let currentVideoTitle = '';
+        let activeTab = 'history';
+        let searchQuery = '';
+
+        // LocalStorage Keys
+        const STORAGE_KEY_HISTORY = 'yt_player_history';
+        const STORAGE_KEY_FAVORITES = 'yt_player_favorites';
+
+        // Load Youtube API
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('youtube-player', {
+                height: '100%',
+                width: '100%',
+                playerVars: {
+                    'playsinline': 1,
+                    'controls': 1,
+                    'modestbranding': 1,
+                    'rel': 0
+                },
+                events: {
+                    'onReady': onPlayerReady
+                }
+            });
+        }
+
+        // DOM References
+        const youtubePlayerEl = document.getElementById('youtube-player');
+        const nativePlayerEl = document.getElementById('native-player');
+
+        const urlForm = document.getElementById('url-form');
+        const videoInput = document.getElementById('video-input');
+        const btnClearInput = document.getElementById('btn-clear-input');
+        const btnPasteInput = document.getElementById('btn-paste-input');
+        const itemList = document.getElementById('item-list');
+        const listSearch = document.getElementById('list-search');
+        const videoTitle = document.getElementById('video-title');
+        const displayId = document.getElementById('display-id');
+        const authorDisplay = document.getElementById('display-author');
+        const tabHistoryBtn = document.getElementById('tab-history-btn');
+        const tabFavoritesBtn = document.getElementById('tab-favorites-btn');
+        const btnClearHistory = document.getElementById('btn-clear-history');
+        const btnToggleFavorite = document.getElementById('btn-toggle-favorite');
+        const favIcon = document.getElementById('fav-icon');
+        const favText = document.getElementById('fav-text');
+
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            renderList();
+
+            // Load last played video if available in history
+            const history = getStoredList(STORAGE_KEY_HISTORY);
+            if (history.length > 0) {
+                currentVideoId = history[0].id;
+                currentVideoTitle = history[0].title || `Video (${history[0].id})`;
+                isNative = history[0].isDirect || false;
+            }
+        });
+
+        // Input Utilities: Clear & Paste handlers
+        function toggleClearButton() {
+            if (videoInput.value.length > 0) {
+                btnClearInput.classList.remove('hidden');
+            } else {
+                btnClearInput.classList.add('hidden');
+            }
+        }
+
+        videoInput.addEventListener('input', toggleClearButton);
+
+        btnClearInput.addEventListener('click', () => {
+            videoInput.value = '';
+            toggleClearButton();
+            videoInput.focus();
+        });
+
+        btnPasteInput.addEventListener('click', async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    videoInput.value = text.trim();
+                    toggleClearButton();
+                    videoInput.focus();
+                    showToast('クリップボードから貼り付けました');
+                } else {
+                    showToast('クリップボードが空です');
+                }
+            } catch (err) {
+                showToast('貼り付け権限がありません');
+            }
+        });
+
+        // Player Lifecycle Handlers
+        function onPlayerReady() {
+            if (currentVideoId) {
+                if (isNative) {
+                    playDirectVideo(currentVideoId, currentVideoTitle);
+                } else {
+                    player.cueVideoById(currentVideoId);
+                    updateVideoUI(currentVideoId, currentVideoTitle);
+                }
+            }
+        }
+
+        // LocalStorage Helpers
+        function getStoredList(key) {
+            try {
+                return JSON.parse(localStorage.getItem(key)) || [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveStoredList(key, list) {
+            localStorage.setItem(key, JSON.stringify(list));
+        }
+
+        function addToHistory(videoId, title, isDirect = false) {
+            let history = getStoredList(STORAGE_KEY_HISTORY);
+            history = history.filter(item => item.id !== videoId);
+            history.unshift({
+                id: videoId,
+                title: title || `Video (${videoId})`,
+                isDirect: isDirect,
+                timestamp: new Date().toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' })
+            });
+            saveStoredList(STORAGE_KEY_HISTORY, history);
+            if (activeTab === 'history') renderList();
+        }
+
+        function toggleFavorite(videoId, title, isDirect = false) {
+            if (!videoId) return;
+            let favorites = getStoredList(STORAGE_KEY_FAVORITES);
+            const index = favorites.findIndex(item => item.id === videoId);
+
+            if (index >= 0) {
+                favorites.splice(index, 1);
+                showToast('お気に入りから削除しました');
+            } else {
+                favorites.unshift({
+                    id: videoId,
+                    title: title || currentVideoTitle || `Video (${videoId})`,
+                    isDirect: isDirect,
+                    timestamp: new Date().toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' })
+                });
+                showToast('お気に入りに追加しました');
+            }
+            saveStoredList(STORAGE_KEY_FAVORITES, favorites);
+            updateFavoriteButtonState();
+            if (activeTab === 'favorites') renderList();
+        }
+
+        // Fetch Title using oEmbed API
+        async function fetchVideoTitle(videoId) {
+            try {
+                const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return {
+                        title: data.title,
+                        author: data.author_name
+                    };
+                }
+            } catch (error) {
+                console.warn('oEmbed API Error:', error);
+            }
+            return {
+                title: `YouTube Video (${videoId})`,
+                author: null
+            };
+        }
+
+        // Check if string is a direct download or stream link
+        function isDirectLink(input) {
+            return input.includes('googlevideo.com') || 
+                   input.includes('videoplayback') || 
+                   input.endsWith('.mp4') || 
+                   input.endsWith('.webm') || 
+                   input.endsWith('.m3u8');
+        }
+
+        // Video Extraction & Loading
+        function extractVideoId(urlOrId) {
+            let targetUrl = urlOrId.trim();
+
+            // Google URL Parser (/url や /goto などの転送リンクに対応)
+            try {
+                const lowerUrl = targetUrl.toLowerCase();
+                if (lowerUrl.includes('google.') && (lowerUrl.includes('/url') || lowerUrl.includes('/goto'))) {
+                    if (!lowerUrl.startsWith('http://') && !lowerUrl.startsWith('https://')) {
+                        targetUrl = 'https://' + targetUrl;
+                    }
+                    const parsedUrl = new URL(targetUrl);
+                    const realUrl = parsedUrl.searchParams.get('q') || parsedUrl.searchParams.get('url');
+                    if (realUrl) {
+                        if (realUrl.startsWith('http') || realUrl.includes('%')) {
+                            targetUrl = decodeURIComponent(realUrl);
+                        } else {
+                            // google.com/goto?url=CAES... のようなBase64/URL-safe Base64トークンをデコード
+                            try {
+                                let base64 = realUrl.replace(/-/g, '+').replace(/_/g, '/');
+                                while (base64.length % 4) {
+                                    base64 += '=';
+                                }
+                                const binaryStr = atob(base64);
+                                // デコードされたバイナリ文字列からYouTubeのURLを抽出
+                                const ytUrlMatch = binaryStr.match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be)[^\x00-\x1F\x7F-\xFF"'\s<>]+/);
+                                if (ytUrlMatch) {
+                                    targetUrl = ytUrlMatch[0];
+                                }
+                            } catch (b64Err) {
+                                console.warn('Base64 decode error:', b64Err);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Google URL parsing error:', e);
+            }
+
+            // URL Decode (二重エンコード対応)
+            if (targetUrl.includes('%3F') || targetUrl.includes('%3D') || targetUrl.includes('%2F')) {
+                try {
+                    targetUrl = decodeURIComponent(targetUrl);
+                } catch (e) {}
+            }
+
+            // YouTube RegEx (標準URL、短縮URL、Shorts、Embed等に対応)
+            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+            const match = targetUrl.match(regex);
+            if (match && match[1]) return match[1];
+
+            if (targetUrl.length === 11 && !targetUrl.includes('/') && !targetUrl.includes('.')) {
+                return targetUrl;
+            }
+
+            return null;
+        }
+
+        urlForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const inputVal = videoInput.value.trim();
+            if (!inputVal) return;
+
+            if (isDirectLink(inputVal)) {
+                currentVideoId = inputVal;
+                currentVideoTitle = 'Direct Stream Video';
+                isNative = true;
+                playDirectVideo(currentVideoId, currentVideoTitle);
+                addToHistory(currentVideoId, currentVideoTitle, true);
+                showToast('直リンク動画をロードしました');
+                return;
+            }
+
+            const extractedId = extractVideoId(inputVal);
+            if (extractedId) {
+                currentVideoId = extractedId;
+                isNative = false;
+                
+                // Show loading status
+                videoTitle.textContent = '動画タイトルを取得中...';
+                
+                const videoData = await fetchVideoTitle(currentVideoId);
+                currentVideoTitle = videoData.title;
+
+                playYouTubeVideo(currentVideoId, currentVideoTitle, videoData.author);
+                addToHistory(currentVideoId, currentVideoTitle, false);
+                showToast('動画を読み込みました');
+            } else {
+                showToast('有効なYouTube URLまたは動画IDを入力してください');
+            }
+        });
+
+        function playYouTubeVideo(id, title, author = null) {
+            nativePlayerEl.pause();
+            nativePlayerEl.classList.add('hidden');
+            youtubePlayerEl.classList.remove('hidden');
+
+            if (player && player.loadVideoById) {
+                player.loadVideoById(id);
+            }
+            updateVideoUI(id, title, author);
+        }
+
+        function playDirectVideo(url, title) {
+            if (player && player.stopVideo) {
+                player.stopVideo();
+            }
+            youtubePlayerEl.classList.add('hidden');
+            nativePlayerEl.classList.remove('hidden');
+            nativePlayerEl.src = url;
+            nativePlayerEl.play().catch(() => {});
+
+            updateVideoUI(url, title);
+        }
+
+        function updateVideoUI(id, title, author = null) {
+            videoTitle.textContent = title || id;
+            displayId.querySelector('span').textContent = `ID / URL: ${id}`;
+            
+            if (author) {
+                authorDisplay.querySelector('span').textContent = author;
+                authorDisplay.classList.remove('hidden');
+            } else {
+                authorDisplay.classList.add('hidden');
+            }
+
+            btnToggleFavorite.disabled = false;
+            updateFavoriteButtonState();
+        }
+
+        function updateFavoriteButtonState() {
+            const favorites = getStoredList(STORAGE_KEY_FAVORITES);
+            const isFav = favorites.some(item => item.id === currentVideoId);
+
+            if (isFav) {
+                favIcon.setAttribute('class', 'w-4 h-4 fill-amber-400 text-amber-400');
+                favText.textContent = 'お気に入り解除';
+                btnToggleFavorite.classList.add('border-amber-500/50', 'bg-amber-500/10', 'text-amber-400');
+            } else {
+                favIcon.setAttribute('class', 'w-4 h-4 text-gray-400');
+                favText.textContent = 'お気に入り追加';
+                btnToggleFavorite.classList.remove('border-amber-500/50', 'bg-amber-500/10', 'text-amber-400');
+            }
+        }
+
+        btnToggleFavorite.addEventListener('click', () => {
+            toggleFavorite(currentVideoId, currentVideoTitle, isNative);
+        });
+
+        // Tab Switching Logic
+        tabHistoryBtn.addEventListener('click', () => {
+            activeTab = 'history';
+            tabHistoryBtn.className = 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand text-white transition';
+            tabFavoritesBtn.className = 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-800 text-gray-400 hover:text-white transition';
+            btnClearHistory.style.display = 'flex';
+            renderList();
+        });
+
+        tabFavoritesBtn.addEventListener('click', () => {
+            activeTab = 'favorites';
+            tabFavoritesBtn.className = 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand text-white transition';
+            tabHistoryBtn.className = 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-800 text-gray-400 hover:text-white transition';
+            btnClearHistory.style.display = 'none';
+            renderList();
+        });
+
+        btnClearHistory.addEventListener('click', () => {
+            if (confirm('再生履歴をすべて削除しますか？')) {
+                saveStoredList(STORAGE_KEY_HISTORY, []);
+                renderList();
+                showToast('履歴を削除しました');
+            }
+        });
+
+        listSearch.addEventListener('input', (e) => {
+            searchQuery = e.target.value.toLowerCase().trim();
+            renderList();
+        });
+
+        // Render History & Favorites List
+        function renderList() {
+            const key = activeTab === 'history' ? STORAGE_KEY_HISTORY : STORAGE_KEY_FAVORITES;
+            let items = getStoredList(key);
+
+            if (searchQuery) {
+                items = items.filter(item => 
+                    item.id.toLowerCase().includes(searchQuery) || 
+                    (item.title && item.title.toLowerCase().includes(searchQuery))
+                );
+            }
+
+            itemList.innerHTML = '';
+
+            if (items.length === 0) {
+                itemList.innerHTML = `
+                    <div class="text-center py-8 text-gray-500 text-xs">
+                        ${searchQuery ? '該当する動画が見つかりません' : activeTab === 'history' ? '再生履歴はありません' : 'お気に入りは登録されていません'}
+                    </div>
+                `;
+                return;
+            }
+
+            items.forEach(item => {
+                const isCurrent = item.id === currentVideoId;
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border transition flex items-center justify-between gap-3 group cursor-pointer ${
+                    isCurrent ? 'bg-brand/10 border-brand/50' : 'bg-gray-900/60 border-gray-800 hover:bg-cardHover hover:border-gray-700'
+                }`;
+
+                const thumbnail = item.isDirect 
+                    ? `<div class="w-16 h-10 bg-gray-800 rounded-lg flex items-center justify-center shrink-0"><i data-lucide="file-video" class="w-5 h-5 text-gray-400"></i></div>`
+                    : `<img src="https://img.youtube.com/vi/${item.id}/default.jpg" alt="thumbnail" class="w-16 h-10 object-cover rounded-lg shrink-0 bg-gray-800" onerror="this.src='https://placehold.co/120x90/1f1f1f/ffffff?text=Video'">`;
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                        ${thumbnail}
+                        <div class="min-w-0 flex-1">
+                            <h4 class="text-xs font-medium text-gray-200 truncate group-hover:text-brand transition">${item.title || item.id}</h4>
+                            <p class="text-[10px] text-gray-500 font-mono truncate mt-0.5">${item.timestamp || ''}</p>
+                        </div>
+                    </div>
+                    <button class="btn-delete-item text-gray-500 hover:text-red-400 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition shrink-0" title="削除">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                `;
+
+                // Item Click: Play Video
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.btn-delete-item')) return;
+                    currentVideoId = item.id;
+                    currentVideoTitle = item.title;
+                    isNative = item.isDirect;
+
+                    if (isNative) {
+                        playDirectVideo(currentVideoId, currentVideoTitle);
+                    } else {
+                        playYouTubeVideo(currentVideoId, currentVideoTitle);
+                    }
+                    renderList();
+                });
+
+                // Item Delete
+                const deleteBtn = card.querySelector('.btn-delete-item');
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    let currentList = getStoredList(key);
+                    currentList = currentList.filter(i => i.id !== item.id);
+                    saveStoredList(key, currentList);
+                    renderList();
+                    if (item.id === currentVideoId && activeTab === 'favorites') {
+                        updateFavoriteButtonState();
+                    }
+                });
+
+                itemList.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        // Toast Helper
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            toastMessage.textContent = message;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
